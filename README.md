@@ -28,7 +28,7 @@ If you want to share a best practice, or think one of these guidelines should be
 
 <a name="codebase"></a>
 ## 1. Codebase
-# One codebase tracked in revision control, many deploys
+### One codebase tracked in revision control, many deploys
 
 A twelve-factor app is always tracked in a version control system, such as Git, Mercurial, or Subversion. A copy of the revision tracking database is known as a code repository, often shortened to code repo or just repo.
 
