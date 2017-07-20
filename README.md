@@ -34,7 +34,7 @@ A twelve-factor app is always tracked in a version control system, such as Git, 
 
 A codebase is any single repo (in a centralized revision control system like Subversion), or any set of repos who share a root commit (in a decentralized revision control system like Git).
 
-[<img src="https://12factor.net/images/codebase-deploys.png">](One codebase maps to many deploys)
+<img src="https://12factor.net/images/codebase-deploys.png">
 
 There is always a one-to-one correlation between the codebase and the app:
 
