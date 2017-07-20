@@ -727,6 +727,7 @@ Make sure you use resources that you have the rights to use. If you use librarie
 
 ---
 Sources:
+[12Factor](https://12factor.net/),
 [RisingStack Engineering](https://blog.risingstack.com/),
 [Mozilla Developer Network](https://developer.mozilla.org/),
 [Heroku Dev Center](https://devcenter.heroku.com),
