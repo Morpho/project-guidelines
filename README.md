@@ -21,6 +21,8 @@ If you want to share a best practice, or think one of these guidelines should be
 - [Build & Deploy](#build-deploy)
 - [Processes](#processes)
 - [Port binding](#port-binding)
+- [Concurrency](#concurrency)
+- [Disposability](#disposability)
 - [Testing](#testing)
 - [Structure and Naming](#structure-and-naming)
 - [Code style](#code-style)
@@ -298,7 +300,7 @@ One benefit of explicit dependency declaration is that it simplifies setup for d
 Twelve-factor apps also do not rely on the implicit existence of any system tools. Examples include shelling out to ImageMagick or `curl`. While these tools may exist on many or even most systems, there is no guarantee that they will exist on all systems where the app may run in the future, or whether the version found on a future system will be compatible with the app. If the app needs to shell out to a system tool, that tool should be vendored into the app.
 
 <a name="external-services"></a>
-## External Services
+## 5. External Services
 ### Treat backing services as attached resources
 
 A backing service is any service the app consumes over the network as part of its normal operation. Examples include datastores (such as [MySQL](http://dev.mysql.com/) or [CouchDB](http://couchdb.apache.org/)), messaging/queueing systems (such as [RabbitMQ](http://www.rabbitmq.com/) or [Beanstalkd](http://kr.github.io/beanstalkd/)), SMTP services for outbound email (such as [Postfix](http://www.postfix.org/)), and caching systems (such as [Memcached](http://memcached.org/)).
@@ -314,7 +316,7 @@ Each distinct backing service is a resource. For example, a MySQL database is a 
 Resources can be attached and detached to deploys at will. For example, if the app’s database is misbehaving due to a hardware issue, the app’s administrator might spin up a new database server restored from a recent backup. The current production database could be detached, and the new database attached – all without any code changes.
 
 <a name="build-deploy"></a>
-## 5. Build &amp; Deploy
+## 6. Build &amp; Deploy
 ### Strictly separate build and run stages
 
 A codebase is transformed into a (non-development) deploy through three stages:
@@ -336,7 +338,7 @@ Every release should always have a unique release ID, such as a timestamp of the
 Builds are initiated by the app’s developers whenever new code is deployed. Runtime execution, by contrast, can happen automatically in cases such as a server reboot, or a crashed process being restarted by the process manager. Therefore, the run stage should be kept to as few moving parts as possible, since problems that prevent an app from running can cause it to break in the middle of the night when no developers are on hand. The build stage can be more complex, since errors are always in the foreground for a developer who is driving the deploy.
 
 <a name="processes"></a>
-## 5. Processes
+## 7. Processes
 ### Execute the app as one or more stateless processes
 
 The app is executed in the execution environment as one or more *processes*.
@@ -352,7 +354,7 @@ Asset packagers (such as [Jammit](http://documentcloud.github.com/jammit/) or [d
 Some web systems rely on [“sticky sessions”](http://en.wikipedia.org/wiki/Load_balancing_%28computing%29#Persistence) – that is, caching user session data in memory of the app’s process and expecting future requests from the same visitor to be routed to the same process. Sticky sessions are a violation of twelve-factor and should never be used or relied upon. Session state data is a good candidate for a datastore that offers time-expiration, such as [Memcached](http://memcached.org/) or [Redis](http://redis.io/).
 
 <a name="port-binding"></a>
-## 5. Port binding
+## 8. Port binding
 ### Export services via port binding
 
 Web apps are sometimes executed inside a webserver container. For example, PHP apps might run as a module inside [Apache HTTPD](http://httpd.apache.org/), or Java apps might run inside [Tomcat](http://tomcat.apache.org/).
@@ -368,7 +370,7 @@ HTTP is not the only service that can be exported by port binding. Nearly any ki
 Note also that the port-binding approach means that one app can become the [backing service](#external-services) for another app, by providing the URL to the backing app as a resource handle in the [config](#config) for the consuming app.
 
 <a name="concurrency"></a>
-## 5. Concurrency
+## 9. Concurrency
 ### Scale out via the process model
 
 Any computer program, once run, is represented by one or more processes. Web apps have taken a variety of process-execution forms. For example, PHP processes run as child processes of Apache, started on demand as needed by request volume. Java processes take the opposite approach, with the JVM providing one massive uberprocess that reserves a large block of system resources (CPU and memory) on startup, with concurrency managed internally via threads. In both cases, the running process(es) are only minimally visible to the developers of the app.
@@ -384,8 +386,22 @@ The process model truly shines when it comes time to scale out. The [share-nothi
 
 Twelve-factor app processes [should never daemonize](http://dustin.github.com/2010/02/28/running-processes.html) or write PID files. Instead, rely on the operating system’s process manager (such as [Upstart](http://upstart.ubuntu.com/), a distributed process manager on a cloud platform, or a tool like [Foreman](http://blog.daviddollar.org/2011/05/06/introducing-foreman.html) in development) to manage [output streams](#logs), respond to crashed processes, and handle user-initiated restarts and shutdowns.
 
+<a name="disposability"></a>
+## 10. Disposability
+### Maximize robustness with fast startup and graceful shutdown
+
+**The twelve-factor app’s [processes](#processes) are disposable, meaning they can be started or stopped at a moment’s notice**. This facilitates fast elastic scaling, rapid deployment of [code](#codebase) or [config](#config) changes, and robustness of production deploys.
+
+Processes should strive to **minimize startup time**. Ideally, a process takes a few seconds from the time the launch command is executed until the process is up and ready to receive requests or jobs. Short startup time provides more agility for the [release](#build-release) process and scaling up; and it aids robustness, because the process manager can more easily move processes to new physical machines when warranted.
+
+Processes *shut down gracefully when they receive a [SIGTERM](http://en.wikipedia.org/wiki/SIGTERM) signal* from the process manager. For a web process, graceful shutdown is achieved by ceasing to listen on the service port (thereby refusing any new requests), allowing any current requests to finish, and then exiting. Implicit in this model is that HTTP requests are short (no more than a few seconds), or in the case of long polling, the client should seamlessly attempt to reconnect when the connection is lost.
+
+For a worker process, graceful shutdown is achieved by returning the current job to the work queue. For example, on [RabbitMQ](http://www.rabbitmq.com/) the worker can send a `NACK`; on [Beanstalkd](http://kr.github.com/beanstalkd/), the job is returned to the queue automatically whenever a worker disconnects. Lock-based systems such as [Delayed Job](https://github.com/collectiveidea/delayed_job#readme) need to be sure to release their lock on the job record. Implicit in this model is that all jobs are [reentrant](http://en.wikipedia.org/wiki/Reentrant_%28subroutine%29), which typically is achieved by wrapping the results in a transaction, or making the operation [idempotent](http://en.wikipedia.org/wiki/Idempotence).
+
+Processes should also be **robust against sudden death**, in the case of a failure in the underlying hardware. While this is a much less common occurrence than a graceful shutdown with `SIGTERM`, it can still happen. A recommended approach is use of a robust queueing backend, such as Beanstalkd, that returns jobs to the queue when clients disconnect or time out. Either way, a twelve-factor app is architected to handle unexpected, non-graceful terminations. [Crash-only design](http://lwn.net/Articles/191059/) takes this concept to its [logical conclusion](http://docs.couchdb.org/en/latest/intro/overview.html).
+
 <a name="testing"></a>
-## 5. Testing
+## 11. Testing
 
 * Have a `test` mode environment if needed.
 
@@ -427,7 +443,7 @@ Twelve-factor app processes [should never daemonize](http://dustin.github.com/20
     > It's a handy note you leave behind for other developers or DevOps experts or QA or anyone who gets lucky enough to work on your code.
 
 <a name="structure-and-naming"></a>
-## 6. Structure and Naming
+## 12. Structure and Naming
 * Organize your files around product features / pages / components, not roles. Also, place your test files next to their implementation.
 
 
@@ -493,7 +509,7 @@ Twelve-factor app processes [should never daemonize](http://dustin.github.com/20
     > Then you can expect what component or module you will receive by simply just importing its parent folder.   
 
 <a name="code-style"></a>
-## 7. Code style
+## 13. Code style
 * Use stage-2 and higher JavaScript (modern) syntax for new projects. For old project stay consistent with existing syntax unless you intend to modernise the project.
 
     _Why:_
@@ -553,7 +569,7 @@ Twelve-factor app processes [should never daemonize](http://dustin.github.com/20
     > It makes it more natural to read the source code.
 
 <a name="logging"></a>
-## 8. Logging
+## 14. Logging
 * Avoid client-side console logs in production
 
     _Why:_
@@ -567,9 +583,9 @@ Twelve-factor app processes [should never daemonize](http://dustin.github.com/20
 
 
 <a name="api"></a>
-## 9. API
+## 15. API
 <a name="api-design"></a>
-### 9.1 API design
+### 15.1 API design
 
 _Why:_
 > Because we try to enforce development of sanely constructed RESTful interfaces, which team members and clients can consume simply and consistently.  
@@ -752,7 +768,7 @@ The **client app did something wrong** or The **API did something wrong**.
 * Pagination, filtering, and sorting don’t need to be supported from start for all resources. Document those resources that offer filtering and sorting.
 
 <a name="api-security"></a>
-### 9.2 API security
+### 15.2 API security
 These are some basic security best practices:
 
 * Don't use basic authentication. Authentication tokens must not be transmitted in the URL: `GET /users/123?token=asdf....`
@@ -789,7 +805,7 @@ These are some basic security best practices:
 
 
 <a name="api-documentation"></a>
-### 9.3 API documentation
+### 15.3 API documentation
 * Fill the `API Reference` section in [README.md template](./README.sample.md) for API.
 * Describe API authentication methods with a code sample
 * Explaining The URL Structure (path only, no root URL) including The request type (Method)
@@ -824,7 +840,7 @@ For each endpoint explain:
 * Use API design tools, There are lots of open source tools for good documentation such as [API Blueprint](https://apiblueprint.org/) and [Swagger](https://swagger.io/).
 
 <a name="licensing"></a>
-## 10. Licensing
+## 16. Licensing
 Make sure you use resources that you have the rights to use. If you use libraries, remember to look for MIT, Apache or BSD but if you modify them, then take a look into license details. Copyrighted images and videos may cause legal problems.
 
 
